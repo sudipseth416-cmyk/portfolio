@@ -1,0 +1,32 @@
+section {
+    padding: 50px 20px;
+    text-align: center;
+}
+
+.card {
+    background: #1e293b;
+    padding: 20px;
+    margin: 20px auto;
+    width: 70%;
+    border-radius: 12px;
+    transition: 0.3s;
+}
+
+.card:hover {
+    transform: scale(1.03);
+}
+
+h2 {
+    color: #38bdf8;
+}
+@keyframes gradientBG {
+    0% {
+        background-position: 0% 50%;
+    }
+    50% {
+        background-position: 100% 50%;
+    }
+    100% {
+        background-position: 0% 50%;
+    }
+}
