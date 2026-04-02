@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Attendance Tracker Pro</title>
+
+<!-- 🔥 CSS FILE -->
+<link rel="stylesheet" href="style.css">
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+
+<body>
+
+<div id="loginSection" class="card" style="max-width:400px;margin:100px auto; text-align:center;">
+<h2>Login</h2>
+<input id="email" placeholder="Email"><br>
+<input id="password" type="password" placeholder="Password"><br>
+<button onclick="login()">Login</button>
+<button onclick="signup()">Sign Up</button>
+<button onclick="googleLogin()">Google</button>
+</div>
+
+<button onclick="logout()" id="logoutBtn" style="display:none; position:absolute; right:20px; top:20px;">Logout</button>
+
+<div class="container">
+<h1>📊 Attendance Dashboard</h1>
+
+<select id="semesterSelect" onchange="changeSemester()">
+<option value="sem1">Semester 1</option>
+<option value="sem2">Semester 2</option>
+<option value="sem3">Semester 3</option>
+<option value="sem4">Semester 4</option>
+<option value="sem5">Semester 5</option>
+<option value="sem6">Semester 6</option>
+<option value="sem7">Semester 7</option>
+<option value="sem8">Semester 8</option>
+</select>
+
+<input id="subjectInput" placeholder="Add Subject">
+<button onclick="addSubject()">Add</button>
+
+<h3 id="overall"></h3>
+<canvas id="chart"></canvas>
+
+<div id="subjects"></div>
+</div>
+
+<script>
+let data = {};
+let currentSemester = "sem1";
+let chart;
+
+function initSemester(){
+    if(!data[currentSemester]) data[currentSemester]={subjects:[]};
+}
+
+function changeSemester(){
+    currentSemester = semesterSelect.value;
+    initSemester(); render();
+}
+
+function addSubject(){
+    let name = subjectInput.value;
+    if(!name) return;
+
+    initSemester();
+    data[currentSemester].subjects.push({name,attended:0,absent:0});
+    subjectInput.value="";
+    save(); render();
+}
+
+function mark(i,type){
+    let s=data[currentSemester].subjects[i];
+    if(type=="present") s.attended++;
+    else s.absent++;
+    save(); render();
+}
+
+function calculateBunk(attended,total){
+    if(total===0) return "No data";
+    let percent=attended/total;
+
+    if(percent>=0.75){
+        let bunk=Math.floor((attended-0.75*total)/0.75);
+        return `You can bunk ${Math.max(0,bunk)} classes`;
+    }else{
+        let need=Math.ceil((0.75*total-attended)/0.25);
+        return `Attend ${need} more classes`;
+    }
+}
+
+function calculateOverall(){
+    let tA=0,tC=0;
+    data[currentSemester].subjects.forEach(s=>{
+        tA+=s.attended;
+        tC+=s.attended+s.absent;
+    });
+    return tC?((tA/tC)*100).toFixed(2)+"%":"No data";
+}
+
+function renderChart(){
+    let labels=[];
+    let values=[];
+
+    data[currentSemester].subjects.forEach(s=>{
+        let total=s.attended+s.absent;
+        let p= total? (s.attended/total)*100:0;
+        labels.push(s.name);
+        values.push(p);
+    });
+
+    if(chart) chart.destroy();
+
+    chart = new Chart(document.getElementById("chart"),{
+        type:"bar",
+        data:{labels:labels, datasets:[{label:"Attendance %", data:values}]},
+        options:{scales:{y:{beginAtZero:true,max:100}}}
+    });
+}
+
+function render(){
+    initSemester();
+    subjects.innerHTML="";
+    overall.innerText="Overall: "+calculateOverall();
+
+    data[currentSemester].subjects.forEach((s,i)=>{
+        let total=s.attended+s.absent;
+        let p= total?((s.attended/total)*100):0;
+
+        subjects.innerHTML+=`<div class="card">
+        <h3>${s.name}</h3>
+        <p>${s.attended}/${total}</p>
+        <div class="progress"><div class="progress-bar ${p>=75?'green':p>=60?'yellow':'red'}" style="width:${p}%"></div></div>
+        <p>${p.toFixed(1)}%</p>
+        <p>${calculateBunk(s.attended,total)}</p>
+        <button onclick="mark(${i},'present')">Present</button>
+        <button onclick="mark(${i},'absent')">Absent</button>
+        </div>`;
+    });
+
+    renderChart();
+}
+</script>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+
+const app = initializeApp({
+  apiKey: "AIzaSyAwleceQJF880sWSTFc4OLBHEh3oOAUf78",
+  authDomain: "attendance-tracker-8c2b5.firebaseapp.com",
+  projectId: "attendance-tracker-8c2b5"
+});
+
+const db = getFirestore(app);
+const auth = getAuth(app);
+
+window.save = async ()=>{
+    if(!auth.currentUser) return;
+    await setDoc(doc(db,"users",auth.currentUser.uid),{attendanceData:data});
+}
+
+window.loadData = async ()=>{
+    let snap=await getDoc(doc(db,"users",auth.currentUser.uid));
+    data=snap.exists()?snap.data().attendanceData:{};
+    render();
+}
+
+window.signup=()=>createUserWithEmailAndPassword(auth,email.value,password.value);
+window.login=()=>signInWithEmailAndPassword(auth,email.value,password.value);
+window.googleLogin=()=>signInWithPopup(auth,new GoogleAuthProvider());
+window.logout=()=>signOut(auth);
+
+onAuthStateChanged(auth,user=>{
+    if(user){
+        loginSection.style.display="none";
+        logoutBtn.style.display="block";
+        document.querySelector(".container").style.display="block";
+        loadData();
+    }else{
+        loginSection.style.display="block";
+        logoutBtn.style.display="none";
+    }
+});
+</script>
+
+</body>
+</html>
